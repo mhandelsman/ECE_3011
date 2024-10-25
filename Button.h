@@ -1,11 +1,18 @@
-void checkButtons() {
-  if (!isPlaying) {
-    if (digitalRead(button1Pin) == LOW) {
-      playWavFile("/ledone.wav", ledone);
-    } else if (digitalRead(button2Pin) == LOW) {
-      playWavFile("/ledtwo.wav", ledtwo);
-    } else if (digitalRead(button3Pin) == LOW) {
-      playWavFile("/ledthree.wav", ledthree);
-    }
-  }
-}
+#ifndef BUTTON_H
+#define BUTTON_H
+
+#include <Arduino.h>
+
+class Button {
+  private:
+    int buttonPin;
+  
+  public:
+    // Constructor: Initializes the button object with a pin number
+    Button(int pin);
+
+    // Method to check if the button is pressed (LOW state)
+    bool isPressed();
+};
+
+#endif
