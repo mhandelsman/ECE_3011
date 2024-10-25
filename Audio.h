@@ -1,29 +1,30 @@
-void playWavFile(const char* filename, int ledPin) {
-  if (isPlaying) return;  // If something is playing, don't start a new file
+#ifndef AUDIO_H
+#define AUDIO_H
 
-  file = new AudioFileSourceSD(filename);  // OPEN THE FILE
-  if (!file->isOpen()) {
-    Serial.println("Error: Could not open WAV file!");
-    return;
-  }
+#include <Arduino.h>
+#include "AudioOutputI2S.h"
+#include "AudioFileSourceSD.h"
+#include "AudioGeneratorWAV.h"
 
-  wav->begin(file, out);
-  Serial.print("Playing: ");
-  Serial.println(filename);
-  digitalWrite(ledPin, HIGH);  // Turn on the LED for this button
-  isPlaying = true;
-  activeLed = ledPin;  // Set active LED to the one associated with the playing file
-}
+class Audio {
+  private:
+    AudioGeneratorWAV *wav;
+    AudioFileSourceSD *file;
+    AudioOutputI2S *out;
+    bool isPlaying;
 
-void stopPlayback() {
-  if (wav->isRunning()) {
-    wav->loop();  // Continue looping the current file
-  } else {
-    wav->stop();
-    file->close();
-    Serial.println("Playback finished.");
-    digitalWrite(activeLed, LOW);  // Turn off the LED that was active during playback
-    isPlaying = false;
-    activeLed = -1;  // Reset active LED
-  }
-}
+  public:
+    // Constructor: Initializes the Audio object
+    Audio();
+
+    // Method to play a WAV file
+    void playWavFile(const char* filename);
+
+    // Method to stop audio playback
+    void stopPlayback();
+
+    // Method to check if audio is playing
+    bool isAudioPlaying();
+};
+
+#endif
