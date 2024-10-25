@@ -1,12 +1,20 @@
-#ifndef SDCall
-#define SDCall
+#ifndef SDCALL_H
+#define SDCALL_H
 
 #include <Arduino.h>
-#include <FS.h>
-#include <SD.h>
-#include <SPI.h>
+#include "SPI.h"
+#include "SD.h"
 
-// Define a test function for SD card calls
-void test_func();
+class SDCall {
+  private:
+    int csPin;  // Chip Select pin for SD card
+
+  public:
+    // Constructor: Initializes the SDCall object with a CS pin
+    SDCall(int csPin);
+
+    // Method to initialize the SD card
+    bool initSD();
+};
 
 #endif
