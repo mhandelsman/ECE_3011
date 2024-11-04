@@ -7,37 +7,39 @@
 #include "AudioGeneratorWAV.h"
 
 // Pin definitions for the SD card and MAX98357
-#define SD_CS 18      // Chip select for SD card
-#define SPI_MISO 20   // SPI MISO (DO)
-#define SPI_MOSI 19   // SPI MOSI (DI)
-#define SPI_SCK 21    // SPI Clock (SCK)
+#define SD_CS 18
+#define SPI_MISO 20
+#define SPI_MOSI 19
+#define SPI_SCK 21
 
 // Pin definitions for LEDs
-#define ledone 10       // LED for button 1
-#define ledtwo 11       // LED for button 2
-#define ledthree 12     // LED for button 3
+#define ledone 10
+#define ledtwo 11
+#define ledthree 12
 
 // Pin definitions for buttons
 #define button1Pin 4
 #define button2Pin 5
 #define button3Pin 15
-#define button4Pin 8   // Button 4 defined but not used
+#define button4Pin 8   // Unused, could be used for a reset or additional interaction
 
 // Pin definitions for MAX98357 I2S interface
-#define I2S_DOUT 13   // DIN pin of the MAX98357 (Audio Data)
-#define I2S_BCLK 3    // BCLK pin of the MAX98357 (Bit Clock)
-#define I2S_LRC 2     // LRC pin of the MAX98357 (Word Select/Left Right Clock)
-#define I2S_SD 9      // SD pin of the MAX98357 (used to enable/disable the amp, tied to GPIO9 or 3.3V)
-#define GAIN_PIN 23   // Pin to control gain
+#define I2S_DOUT 13
+#define I2S_BCLK 3
+#define I2S_LRC 2
+#define I2S_SD 9
+#define GAIN_PIN 23
 
-AudioGeneratorWAV *wav;            // WAV generator
-AudioFileSourceSD *file;           // SD card file source
-AudioOutputI2S *out;               // I2S output to MAX98357
-bool isPlaying = false;            // Flag to prevent multiple files from playing at once
-int activeLed = -1;                // Tracks which LED is active during playback
+AudioGeneratorWAV *wav;
+AudioFileSourceSD *file;
+AudioOutputI2S *out;
+bool isPlaying = false;
+int activeLed = -1;
+int planetsVisited = 0;
+bool buttonStates[3] = {true, true, true}; // Track if buttons are active
+bool isFirstRun = true;  // Track if this is the initial run after power on
 
 void setup() {
-  // Initialize Serial for debugging
   Serial.begin(115200);
 
   // Initialize LED pins
@@ -54,7 +56,7 @@ void setup() {
   pinMode(button1Pin, INPUT_PULLUP);
   pinMode(button2Pin, INPUT_PULLUP);
   pinMode(button3Pin, INPUT_PULLUP);
-  pinMode(button4Pin, INPUT_PULLUP);  // Button 4 is defined but not used
+  pinMode(button4Pin, INPUT_PULLUP);
 
   // Initialize SPI for SD card
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
@@ -66,23 +68,27 @@ void setup() {
 
   Serial.println("SD card initialized successfully.");
 
-  // Set up GAIN pin for the MAX98357
   pinMode(GAIN_PIN, OUTPUT);
-  digitalWrite(GAIN_PIN, HIGH);  // Set gain to high (9dB). Set LOW for lower gain (3dB).
+  digitalWrite(GAIN_PIN, HIGH);
 
-  // Set up I2S for MAX98357
   out = new AudioOutputI2S();
-  out->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT); // Set I2S pins
-  out->SetGain(1.0);  // Set maximum volume (1.0)
+  out->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  out->SetGain(1.0);
 
-  // Prepare the WAV generator but don't open any file yet
   wav = new AudioGeneratorWAV();
+
+  // Play narratorstart.wav only if this is the first run
+  if (isFirstRun) {
+    playWavFile("/narratorstart.wav");
+    while (isPlaying) stopPlayback();
+    isFirstRun = false;  // Mark that the initial run has completed
+  }
 }
 
-void playWavFile(const char* filename, int ledPin) {
-  if (isPlaying) return;  // If something is playing, don't start a new file
+void playWavFile(const char* filename, int ledPin = -1) {
+  if (isPlaying) return;
 
-  file = new AudioFileSourceSD(filename);  // OPEN THE FILE
+  file = new AudioFileSourceSD(filename);
   if (!file->isOpen()) {
     Serial.println("Error: Could not open WAV file!");
     return;
@@ -91,48 +97,119 @@ void playWavFile(const char* filename, int ledPin) {
   wav->begin(file, out);
   Serial.print("Playing: ");
   Serial.println(filename);
-  digitalWrite(ledPin, HIGH);  // Turn on the LED for this button
+  if (ledPin != -1) {
+    digitalWrite(ledPin, HIGH);
+    activeLed = ledPin;
+  }
   isPlaying = true;
-  activeLed = ledPin;  // Set active LED to the one associated with the playing file
 }
 
 void stopPlayback() {
   if (wav->isRunning()) {
-    wav->loop();  // Continue looping the current file
+    wav->loop();
   } else {
     wav->stop();
     file->close();
     Serial.println("Playback finished.");
-    digitalWrite(activeLed, LOW);  // Turn off the LED that was active during playback
+    if (activeLed != -1) {
+      digitalWrite(activeLed, LOW);
+      activeLed = -1;
+    }
     isPlaying = false;
-    activeLed = -1;  // Reset active LED
   }
 }
 
+void resetGame() {
+  planetsVisited = 0;
+  buttonStates[0] = buttonStates[1] = buttonStates[2] = true;
+  Serial.println("Game has been reset. Ready for a new adventure!");
+}
+
 void loop() {
-  // If audio is playing, handle playback without checking buttons
   if (isPlaying) {
-    stopPlayback();  // Only check the audio status and loop
+    stopPlayback();
     return;
   }
 
-  // If no audio is playing, check for button presses
-  if (!isPlaying) {
-    // If button 1 is pressed and no audio is playing, play ledone.wav
-    if (digitalRead(button1Pin) == LOW) {
-      playWavFile("/ledone.wav", ledone);
-    }
+  if (planetsVisited == 0) {
+    // Play narratorintro.wav at the start of a new run
+    playWavFile("/narratorintro.wav");
+    while (isPlaying) stopPlayback();
+  }
 
-    // If button 2 is pressed and no audio is playing, play ledtwo.wav
-    else if (digitalRead(button2Pin) == LOW) {
-      playWavFile("/ledtwo.wav", ledtwo);
-    }
+  if (planetsVisited < 3) {
+    if (buttonStates[0] && digitalRead(button1Pin) == LOW) {
+      buttonStates[0] = false;
+      playWavFile("/soundeffect.wav");
+      delay(1000);
 
-    // If button 3 is pressed and no audio is playing, play ledthree.wav
-    else if (digitalRead(button3Pin) == LOW) {
-      playWavFile("/ledthree.wav", ledthree);
+      playWavFile("/narratormercury.wav");
+      while (isPlaying) stopPlayback();
+      playWavFile("/novamercury.wav", ledone);
+      while (isPlaying) stopPlayback();
+      playWavFile("/zaramercury.wav", ledtwo);
+      while (isPlaying) stopPlayback();
+      playWavFile("/lunamercury.wav", ledthree);
+      while (isPlaying) stopPlayback();
+      playWavFile("/mercuryleaving.wav");
+
+      planetsVisited++;
+    }
+    else if (buttonStates[1] && digitalRead(button2Pin) == LOW) {
+      buttonStates[1] = false;
+      playWavFile("/soundeffect.wav");
+      delay(1000);
+
+      playWavFile("/narratorvenus.wav");
+      while (isPlaying) stopPlayback();
+      playWavFile("/novavenus.wav", ledone);
+      while (isPlaying) stopPlayback();
+      playWavFile("/zaravenus.wav", ledtwo);
+      while (isPlaying) stopPlayback();
+      playWavFile("/lunavenus.wav", ledthree);
+      while (isPlaying) stopPlayback();
+      playWavFile("/venusleaving.wav");
+
+      planetsVisited++;
+    }
+    else if (buttonStates[2] && digitalRead(button3Pin) == LOW) {
+      buttonStates[2] = false;
+      playWavFile("/soundeffect.wav");
+      delay(1000);
+
+      playWavFile("/narratormars.wav");
+      while (isPlaying) stopPlayback();
+      playWavFile("/novamars.wav", ledone);
+      while (isPlaying) stopPlayback();
+      playWavFile("/zaramars.wav", ledtwo);
+      while (isPlaying) stopPlayback();
+      playWavFile("/lunamars.wav", ledthree);
+      while (isPlaying) stopPlayback();
+      playWavFile("/marsleaving.wav");
+
+      planetsVisited++;
     }
   }
 
-  delay(100);  // Debounce delay
+  if (planetsVisited == 3) {
+    playWavFile("/narratorvisitall.wav");
+    while (isPlaying) stopPlayback();
+    if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
+      playWavFile("/soundeffect.wav");
+      delay(1000);
+      playWavFile("/narratorend.wav");
+      while (isPlaying) stopPlayback();
+
+      // Wait for any button press to restart the game
+      while (true) {
+        if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
+          resetGame();
+          break;
+        }
+        delay(100);
+      }
+    }
+  }
+
+  delay(100);
 }
