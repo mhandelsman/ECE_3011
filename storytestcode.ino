@@ -76,13 +76,6 @@ void setup() {
   out->SetGain(1.0);
 
   wav = new AudioGeneratorWAV();
-
-  // Play narratorstart.wav only if this is the first run
-  if (isFirstRun) {
-    playWavFile("/narratorstart.wav");
-    while (isPlaying) stopPlayback();
-    isFirstRun = false;  // Mark that the initial run has completed
-  }
 }
 
 void playWavFile(const char* filename, int ledPin = -1) {
@@ -119,6 +112,21 @@ void stopPlayback() {
   }
 }
 
+void flashAllLEDsDuringSoundEffect() {
+  unsigned long startTime = millis();
+  unsigned long duration = 3000;  // Set duration for LED flashing (e.g., 3 seconds)
+  while (millis() - startTime < duration) {
+    digitalWrite(ledone, HIGH);
+    digitalWrite(ledtwo, HIGH);
+    digitalWrite(ledthree, HIGH);
+    delay(250);  // Flash interval
+    digitalWrite(ledone, LOW);
+    digitalWrite(ledtwo, LOW);
+    digitalWrite(ledthree, LOW);
+    delay(250);
+  }
+}
+
 void resetGame() {
   planetsVisited = 0;
   buttonStates[0] = buttonStates[1] = buttonStates[2] = true;
@@ -131,6 +139,24 @@ void loop() {
     return;
   }
 
+  // Play narratorstart.wav only if this is the first run and wait for button press
+  if (isFirstRun) {
+    playWavFile("/narratorstart.wav");
+    while (isPlaying) stopPlayback();
+    
+    // Wait for any button press to proceed
+    while (digitalRead(button1Pin) == HIGH && digitalRead(button2Pin) == HIGH && digitalRead(button3Pin) == HIGH) {
+      delay(100);  // Wait for button press
+    }
+
+    // Play the sound effect and flash LEDs
+    playWavFile("/soundeffect.wav");
+    flashAllLEDsDuringSoundEffect();
+    while (isPlaying) stopPlayback();
+    
+    isFirstRun = false;  // Mark that the initial run has completed
+  }
+
   if (planetsVisited == 0) {
     // Play narratorintro.wav at the start of a new run
     playWavFile("/narratorintro.wav");
@@ -141,6 +167,7 @@ void loop() {
     if (buttonStates[0] && digitalRead(button1Pin) == LOW) {
       buttonStates[0] = false;
       playWavFile("/soundeffect.wav");
+      flashAllLEDsDuringSoundEffect();
       delay(1000);
 
       playWavFile("/narratormercury.wav");
@@ -158,6 +185,7 @@ void loop() {
     else if (buttonStates[1] && digitalRead(button2Pin) == LOW) {
       buttonStates[1] = false;
       playWavFile("/soundeffect.wav");
+      flashAllLEDsDuringSoundEffect();
       delay(1000);
 
       playWavFile("/narratorvenus.wav");
@@ -175,6 +203,7 @@ void loop() {
     else if (buttonStates[2] && digitalRead(button3Pin) == LOW) {
       buttonStates[2] = false;
       playWavFile("/soundeffect.wav");
+      flashAllLEDsDuringSoundEffect();
       delay(1000);
 
       playWavFile("/narratormars.wav");
@@ -196,6 +225,7 @@ void loop() {
     while (isPlaying) stopPlayback();
     if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
       playWavFile("/soundeffect.wav");
+      flashAllLEDsDuringSoundEffect();
       delay(1000);
       playWavFile("/narratorend.wav");
       while (isPlaying) stopPlayback();
