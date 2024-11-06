@@ -38,6 +38,8 @@ int activeLed = -1;
 int planetsVisited = 0;
 bool buttonStates[3] = {true, true, true}; // Track if buttons are active
 bool isFirstRun = true;  // Track if this is the initial run after power on
+bool introPlayed = false;  // Track if narratorintro.wav has been played in the current run
+bool endPlayed = false; //Track if narratorvisitall.wav has been played in the current run
 
 void setup() {
   Serial.begin(115200);
@@ -129,6 +131,8 @@ void flashAllLEDsDuringSoundEffect() {
 
 void resetGame() {
   planetsVisited = 0;
+  introPlayed = false;  // Reset intro flag for a new game
+  endPlayed = false;
   buttonStates[0] = buttonStates[1] = buttonStates[2] = true;
   Serial.println("Game has been reset. Ready for a new adventure!");
 }
@@ -157,10 +161,11 @@ void loop() {
     isFirstRun = false;  // Mark that the initial run has completed
   }
 
-  if (planetsVisited == 0) {
-    // Play narratorintro.wav at the start of a new run
+  // Play narratorintro.wav only once at the start of a new run
+  if (planetsVisited == 0 && !introPlayed) {
     playWavFile("/narratorintro.wav");
     while (isPlaying) stopPlayback();
+    introPlayed = true;  // Ensure intro doesn't replay within the same run
   }
 
   if (planetsVisited < 3) {
@@ -178,9 +183,12 @@ void loop() {
       while (isPlaying) stopPlayback();
       playWavFile("/lunamercury.wav", ledthree);
       while (isPlaying) stopPlayback();
-      playWavFile("/mercuryleaving.wav");
-
       planetsVisited++;
+      if (planetsVisited != 3){
+        playWavFile("/mercuryleaving.wav");
+      } else {
+        playWavFile("/nothing.wav");
+      }
     }
     else if (buttonStates[1] && digitalRead(button2Pin) == LOW) {
       buttonStates[1] = false;
@@ -196,9 +204,12 @@ void loop() {
       while (isPlaying) stopPlayback();
       playWavFile("/lunavenus.wav", ledthree);
       while (isPlaying) stopPlayback();
-      playWavFile("/venusleaving.wav");
-
       planetsVisited++;
+      if (planetsVisited != 3){
+        playWavFile("/venusleaving.wav");
+      } else {
+        playWavFile("/nothing.wav");
+      }
     }
     else if (buttonStates[2] && digitalRead(button3Pin) == LOW) {
       buttonStates[2] = false;
@@ -214,30 +225,39 @@ void loop() {
       while (isPlaying) stopPlayback();
       playWavFile("/lunamars.wav", ledthree);
       while (isPlaying) stopPlayback();
-      playWavFile("/marsleaving.wav");
-
       planetsVisited++;
+      if (planetsVisited != 3){
+        playWavFile("/marsleaving.wav");
+      } else {
+        playWavFile("/nothing.wav");
+      }
+
     }
   }
 
-  if (planetsVisited == 3) {
+  if (planetsVisited == 3 && !endPlayed) {
     playWavFile("/narratorvisitall.wav");
     while (isPlaying) stopPlayback();
-    if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
-      playWavFile("/soundeffect.wav");
-      flashAllLEDsDuringSoundEffect();
-      delay(1000);
-      playWavFile("/narratorend.wav");
-      while (isPlaying) stopPlayback();
+    endPlayed = true;
+    while (true){
+      if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
+        playWavFile("/soundeffect.wav");
+        flashAllLEDsDuringSoundEffect();
+        delay(1000);
+        playWavFile("/narratorend.wav");
+        while (isPlaying) stopPlayback();
 
       // Wait for any button press to restart the game
-      while (true) {
-        if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
-          resetGame();
-          break;
-        }
-        delay(100);
+        while (true) {
+          if (digitalRead(button1Pin) == LOW || digitalRead(button2Pin) == LOW || digitalRead(button3Pin) == LOW) {
+            resetGame();
+            break;
+          }
+          delay(100);
       }
+      break;
+    }
+    delay(100);
     }
   }
 
